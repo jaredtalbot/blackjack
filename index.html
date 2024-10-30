@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blackjack!</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        position: relative;
+        background-color: #006c4c;
+        font-family: Arial, Helvetica, sans-serif;
+        color: white;
+      }
+
+      .title {
+        font-style: italic;
+      }
+
+      .chips-container {
+        position: absolute;
+        top: 16px;
+        right: 32px;
+        display: flex;
+        align-items: center;
+        font-weight: 700;
+        font-size: x-large;
+      }
+
+      .ui-container button {
+        border: none;
+        color: white;
+        border-radius: 1rem;
+        font-weight: 700;
+        font-size: x-large;
+        padding: 0.5rem;
+        min-width: 100px;
+        margin: 0 0.5rem;
+        cursor: pointer;
+        box-shadow: 0 0.1rem 0.25rem rgba(0, 0, 0, 0.2);
+        transition: transform 0.1s;
+      }
+
+      .ui-display {
+        text-align: center;
+      }
+
+      .ui-display.hidden {
+        display: none;
+      }
+
+      .ui-container label {
+        font-weight: 600;
+      }
+
+      .ui-container button {
+        background-color: black;
+      }
+
+      .ui-container button:active {
+        transform: scale(0.8, 0.8);
+      }
+
+      .ui-container button.hit {
+        background-color: #55dd55;
+      }
+      .ui-container button.hit:hover {
+        background-color: #75ff75;
+      }
+
+      .ui-container button.stand {
+        background-color: #dd5555;
+      }
+      .ui-container button.stand:hover {
+        background-color: #ff7575;
+      }
+
+      .ui-container button.continue {
+        background-color: #ddae55;
+      }
+
+      .ui-container button.continue:hover {
+        background-color: #ffcf75;
+      }
+
+      .ui-container button.start {
+        background-color: #5555dd;
+      }
+
+      .ui-container button.start:hover {
+        background-color: #7575ff;
+      }
+
+      .chip {
+        background: radial-gradient(
+            transparent 0 30%,
+            #cc0000 35% 35%,
+            transparent 38%
+          ),
+          radial-gradient(red 0 40%, transparent 0),
+          repeating-conic-gradient(from -15deg, white 0 30deg, red 30deg 60deg);
+        width: 64px;
+        height: 64px;
+        mask: radial-gradient(white 0 50%, transparent 0);
+      }
+
+      .front,
+      .back {
+        position: absolute;
+        inset: 0;
+      }
+      .front {
+        transform: translateZ(1px);
+      }
+      .back {
+        transform: translateZ(-1px) rotateY(180deg);
+      }
+      .card {
+        transform-style: preserve-3d;
+        transform: perspective(500px);
+        position: absolute;
+        width: 75px;
+        height: 107px;
+        top: 16px;
+        left: 32px;
+        transition: all 0.5s;
+      }
+      .card.flipped {
+        transform: perspective(500px) rotateY(180deg);
+      }
+
+      #player-score,
+      #dealer-score {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: large;
+        font-weight: 700;
+      }
+
+      #dealer-score {
+        top: 125px;
+      }
+
+      #player-score {
+        bottom: 50px;
+      }
+
+      #bet-amount {
+        margin: 0.5rem 0.5rem;
+        width: 10rem;
+        font-size: larger;
+        color: white;
+        background-color: #222222;
+        border: none;
+      }
+
+      #high-score {
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chips-container">
+      <div class="chip"></div>
+      <div id="chip-count">0</div>
+    </div>
+    <div id="player-score" class="score"></div>
+    <div id="dealer-score" class="score"></div>
+    <div class="ui-container">
+      <div id="start-display" class="ui-display">
+        <h1 class="title">Blackjack</h1>
+        <label for="bet-amount">Bet:</label
+        ><input type="number" id="bet-amount" min="1" required /><br /><button
+          type="button"
+          class="start"
+          onclick="placeBet()"
+        >
+          Deal
+        </button>
+      </div>
+      <div id="play-display" class="ui-display">
+        <button type="button" class="hit" onclick="hit()">Hit</button
+        ><button type="button" class="stand" onclick="stand()">Stand</button>
+      </div>
+      <div id="end-display" class="ui-display">
+        <p id="end-message"></p>
+        <p id="end-chips"></p>
+        <button type="button" class="continue" onclick="backToStart()">
+          Continue
+        </button>
+      </div>
+      <div id="game-over-display" class="ui-display">
+        <p>You're out of chips. Game over!</p>
+        <p id="high-score"></p>
+        <button type="button" class="continue" onclick="restart()">
+          Start Over
+        </button>
+      </div>
+    </div>
+    <script>
+      const CARD_W = 75;
+      const CARD_H = 107;
+      let chips = 0;
+      let bettedChips = 0;
+      let highScore = 0;
+
+      function checkForHighScore() {
+        if (chips > highScore) {
+          highScore = chips;
+        }
+      }
+
+      function setChips(newChips) {
+        chips = newChips;
+        const chipCount = document.getElementById("chip-count");
+        chipCount.textContent = chips;
+        checkForHighScore();
+      }
+
+      function hideScores() {
+        document
+          .querySelectorAll(".score")
+          .forEach((element) => (element.textContent = ""));
+      }
+
+      function addChips(added) {
+        chips += added;
+        const chipCount = document.getElementById("chip-count");
+        chipCount.textContent = chips;
+        chipCount.animate(
+          [
+            { color: "", transform: "" },
+            { color: "#00FF00", transform: "scale(1.4, 1.4)" },
+          ],
+          {
+            duration: 250,
+            direction: "alternate",
+            easing: "ease-out",
+            iterations: 2,
+          }
+        );
+        checkForHighScore();
+      }
+
+      function betChips(betting) {
+        bettedChips = betting;
+        subChips(betting);
+      }
+
+      function loseBettedChips() {
+        const endChipsText = document.getElementById("end-chips");
+        endChipsText.textContent = `You lost ${bettedChips} chips.`;
+        bettedChips = 0;
+      }
+
+      function winBettedChips() {
+        const endChipsText = document.getElementById("end-chips");
+        endChipsText.textContent = `You won ${bettedChips} chips.`;
+        addChips(bettedChips * 2);
+        bettedChips = 0;
+      }
+
+      function returnBettedChips() {
+        const endChipsText = document.getElementById("end-chips");
+        endChipsText.textContent = `Your ${bettedChips} chips has been returned.`;
+        addChips(bettedChips);
+        bettedChips = 0;
+      }
+
+      function subChips(removed) {
+        chips -= removed;
+        const chipCount = document.getElementById("chip-count");
+        chipCount.textContent = chips;
+        chipCount.animate(
+          [
+            { color: "", transform: "" },
+            { color: "#FF0000", transform: "scale(1.4, 1.4)" },
+          ],
+          {
+            duration: 250,
+            direction: "alternate",
+            easing: "ease-out",
+            iterations: 2,
+          }
+        );
+      }
+
+      const ranks = [
+        "a",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "j",
+        "q",
+        "k",
+      ];
+      const suits = ["s", "h", "d", "c"];
+
+      const allCards = [];
+      let deck = [];
+      let playerDrawnCards = [];
+      let dealerDrawnCards = [];
+
+      function initCards() {
+        ranks.forEach((r) => {
+          suits.forEach((s) => {
+            const card = document.createElement("div");
+            const front = document.createElement("img");
+            const back = document.createElement("img");
+            card.className = "card flipped";
+            front.className = "front";
+            back.className = "back";
+            card.appendChild(front);
+            card.appendChild(back);
+            const cardName = `${r}${s}`;
+            card.id = cardName;
+            card.rank = r;
+            front.src = `./cards/${cardName}.png`;
+            back.src = "./cards/back.png";
+            document.body.appendChild(card);
+            card.ontransitionstart = () => (card.style.zIndex = "999");
+            card.ontransitionend = () => (card.style.zIndex = "");
+            card.ontransitioncancel = () => (card.style.zIndex = "");
+            allCards.push(card);
+          });
+        });
+      }
+
+      function updatePlayerDrawnCards() {
+        const nCards = playerDrawnCards.length;
+        for (let i = 0; i < nCards; i++) {
+          const card = playerDrawnCards[i];
+          card.classList.remove("flipped");
+          card.style.left = `calc(50% + ${CARD_W * i}px - ${
+            (CARD_W / 2) * playerDrawnCards.length
+          }px)`;
+          card.style.top = `calc(100vh - (${CARD_H}px + 75px))`;
+        }
+        const scoreDisplay = document.getElementById("player-score");
+        scoreDisplay.textContent = calculateScore(playerDrawnCards, true);
+      }
+
+      function updateDealerDrawnCards(hideLastCard = false) {
+        const nCards = dealerDrawnCards.length;
+        for (let i = 0; i < nCards; i++) {
+          const card = dealerDrawnCards[i];
+          if (i == nCards - 1 && hideLastCard) {
+            card.classList.add("flipped");
+          } else {
+            card.classList.remove("flipped");
+          }
+          card.style.left = `calc(50% + ${CARD_W * i}px - ${
+            (CARD_W / 2) * dealerDrawnCards.length
+          }px)`;
+          card.style.top = "150px";
+        }
+        const scoreDisplay = document.getElementById("dealer-score");
+        scoreDisplay.textContent = calculateScore(dealerDrawnCards, true);
+      }
+
+      function resetAllCards() {
+        for (let card of allCards) {
+          card.classList.add("flipped");
+          card.attributeStyleMap.clear();
+        }
+      }
+
+      function startGame() {
+        makeDeck();
+        drawPlayerCards(2);
+        drawDealerCards(2, true);
+        switchUi("play-display");
+
+        if (calculateScore(playerDrawnCards) >= 21) {
+          endGame();
+        }
+      }
+
+      function makeDeck() {
+        deck = [...allCards];
+        playerDrawnCards = [];
+        dealerDrawnCards = [];
+
+        // shuffle
+        for (let i = deck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+
+          [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+      }
+
+      function drawPlayerCards(nCards) {
+        for (let i = 0; i < nCards; i++) {
+          playerDrawnCards.push(deck.pop());
+        }
+
+        updatePlayerDrawnCards();
+      }
+
+      function drawDealerCards(nCards, hideLastCard) {
+        for (let i = 0; i < nCards; i++) {
+          dealerDrawnCards.push(deck.pop());
+        }
+
+        updateDealerDrawnCards(hideLastCard);
+      }
+
+      function hit() {
+        drawPlayerCards(1);
+        const playerScore = calculateScore(playerDrawnCards);
+        if (playerScore > 21) {
+          endGame();
+        } else if (playerScore === 21) {
+          dealersTurn();
+        }
+      }
+
+      async function stand() {
+        switchUi("none");
+        dealersTurn();
+      }
+
+      async function dealersTurn() {
+        updateDealerDrawnCards();
+        await wait(500);
+        while (calculateScore(dealerDrawnCards) < 17) {
+          drawDealerCards(1);
+          await wait(500);
+        }
+        endGame();
+      }
+
+      function wait(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function calculateScore(cards, doNotCountFlipped = false) {
+        let score = 0;
+        let aces = 0;
+        for (let card of cards) {
+          if (card.classList.contains("flipped") && doNotCountFlipped) {
+            continue;
+          }
+          rankStr = card.rank;
+          switch (rankStr) {
+            case "k":
+            case "q":
+            case "j":
+              score += 10;
+              break;
+            case "a":
+              aces += 1;
+              break;
+            default:
+              score += Number(rankStr);
+          }
+        }
+
+        for (let i = 0; i < aces; i++) {
+          if (score < 11) {
+            score += 11;
+          } else {
+            score += 1;
+          }
+        }
+
+        return score;
+      }
+
+      function switchUi(buttonContainerId) {
+        const buttonContainers = document.querySelectorAll(
+          ".ui-container .ui-display"
+        );
+
+        for (let buttonContainer of buttonContainers) {
+          if (buttonContainer.id === buttonContainerId) {
+            buttonContainer.classList.remove("hidden");
+          } else {
+            buttonContainer.classList.add("hidden");
+          }
+        }
+      }
+
+      async function endGame() {
+        switchUi("none");
+        await wait(500);
+        const playerScore = calculateScore(playerDrawnCards);
+        const dealerScore = calculateScore(dealerDrawnCards);
+        const playerBlackjack =
+          playerScore === 21 && playerDrawnCards.length === 2;
+        const dealerBlackjack =
+          dealerScore === 21 && dealerDrawnCards.length === 2;
+
+        if (playerBlackjack && !dealerBlackjack) {
+          giveResults("win", "Blackjack! You win!");
+        } else if (playerScore > 21) {
+          giveResults("lose", "You busted!");
+        } else {
+          updateDealerDrawnCards();
+          await wait(500);
+          if (playerScore > dealerScore || dealerScore > 21) {
+            giveResults("win", "You win!");
+          } else if (playerScore === dealerScore) {
+            giveResults("push", "Push, nobody wins.");
+          } else {
+            giveResults("lose", "You lose!");
+          }
+        }
+      }
+
+      function giveResults(result, msg) {
+        switch (result) {
+          case "win":
+            winBettedChips();
+            break;
+          case "lose":
+            loseBettedChips();
+            break;
+          default:
+            returnBettedChips();
+        }
+        const endText = document.getElementById("end-message");
+        endText.textContent = msg;
+        switchUi("end-display");
+      }
+
+      function backToStart() {
+        resetAllCards();
+        hideScores();
+        if (chips > 0) {
+          showStartDisplay();
+        } else {
+          showGameOver();
+        }
+      }
+
+      function showStartDisplay() {
+        switchUi("start-display");
+        const betInput = document.getElementById("bet-amount");
+        betInput.max = chips;
+      }
+
+      function showGameOver() {
+        switchUi("game-over-display");
+        const highScoreText = document.getElementById("high-score");
+        highScoreText.textContent = `Your high score was ${highScore} chips.`;
+      }
+
+      function placeBet() {
+        const betInput = document.getElementById("bet-amount");
+        const validBet = betInput.reportValidity();
+
+        if (validBet) {
+          betChips(Number(betInput.value));
+          startGame();
+        }
+      }
+
+      function restart() {
+        highScore = 0;
+        setChips(150);
+        showStartDisplay();
+      }
+
+      initCards();
+      setChips(150);
+      showStartDisplay();
+    </script>
+  </body>
+</html>
